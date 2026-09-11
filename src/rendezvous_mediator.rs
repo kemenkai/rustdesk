@@ -210,6 +210,9 @@ impl RendezvousMediator {
         }
         scrap::codec::test_av1();
         *LAST_NOT_DEPLOYED_REGISTER.lock().await = None;
+        // 原生 rendezvous 连续失败 N 次后自动回退 ws(进程内保持粘性,重启后重试原生)
+        let mut native_fail_count = 0u32;
+        const NATIVE_FAIL_WS_THRESHOLD: u32 = 3;
         loop {
             let timeout = Arc::new(RwLock::new(CONNECT_TIMEOUT));
             let conn_start_time = Instant::now();
@@ -221,11 +224,14 @@ impl RendezvousMediator {
                 let servers = Config::get_rendezvous_servers();
                 SHOULD_EXIT.store(false, Ordering::SeqCst);
                 MANUAL_RESTARTED.store(false, Ordering::SeqCst);
+                let cycle_fails = Arc::new(std::sync::atomic::AtomicU32::new(0));
                 for host in servers.clone() {
                     let server = server.clone();
                     let timeout = timeout.clone();
+                    let cycle_fails = cycle_fails.clone();
                     futs.push(tokio::spawn(async move {
                         if let Err(err) = Self::start(server, host).await {
+                            cycle_fails.fetch_add(1, Ordering::SeqCst);
                             let err = format!("rendezvous mediator error: {err}");
                             // When user reboot, there might be below error, waiting too long
                             // (CONNECT_TIMEOUT 18s) will make user think there is bug
@@ -241,6 +247,20 @@ impl RendezvousMediator {
                     }));
                 }
                 join_all(futs).await;
+                if cycle_fails.load(Ordering::SeqCst) > 0 {
+                    native_fail_count += 1;
+                    if native_fail_count >= NATIVE_FAIL_WS_THRESHOLD
+                        && Config::get_option(OPTION_ALLOW_WEBSOCKET).is_empty()
+                        && !hbb_common::config::native_ws_fallback()
+                    {
+                        log::info!(
+                            "native rendezvous failed {native_fail_count} cycles, fallback to websocket"
+                        );
+                        hbb_common::config::set_native_ws_fallback(true);
+                    }
+                } else {
+                    native_fail_count = 0;
+                }
             } else {
                 server.write().unwrap().close_connections();
             }

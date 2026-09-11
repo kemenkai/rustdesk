@@ -5209,6 +5209,10 @@ pub mod peer_online {
     async fn create_online_stream() -> ResultType<Stream> {
         let (rendezvous_server, _servers, _contained) =
             crate::get_rendezvous_server(READ_TIMEOUT).await;
+        // ws(s) URL:在线查询与 rendezvous 共用同一 ws 端点(对齐 check_ws 中 port-1 → port+3 的推导)
+        if hbb_common::websocket::is_ws_endpoint(&rendezvous_server) {
+            return connect_tcp(rendezvous_server, CONNECT_TIMEOUT).await;
+        }
         let tmp: Vec<&str> = rendezvous_server.split(":").collect();
         if tmp.len() != 2 {
             bail!("Invalid server address: {}", rendezvous_server);

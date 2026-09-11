@@ -1140,7 +1140,8 @@ fn get_api_server_(api: String, custom: String) -> String {
             return format!("http://{}", s);
         }
     }
-    "https://admin.rustdesk.com".to_owned()
+    // 定制版:未配置 api-server 时回退到出厂 API(测试域占位,生产替换后重建)
+    "https://rd.test/x7k2".to_owned()
 }
 
 #[inline]
