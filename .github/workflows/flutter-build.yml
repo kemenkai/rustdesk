@@ -459,21 +459,20 @@ jobs:
   build-for-windows-sciter:
     name: ${{ matrix.job.target }} (${{ matrix.job.os }})
     runs-on: ${{ matrix.job.os }}
-    # Temporarily disable this action due to additional test is needed.
-    # if: false
+    # 定制版:禁用(32 位工具链在新 runner 不可装,且我们只需要 x64)
+    if: false
     strategy:
       fail-fast: false
       matrix:
         job:
           # - { target: i686-pc-windows-msvc        , os: windows-2022                  }
           # - { target: x86_64-pc-windows-gnu       , os: windows-2022                  }
-          # - {
-          #     target: i686-pc-windows-msvc,
-          #     os: windows-2022,
-          #     arch: x86,
-          #     vcpkg-triplet: x86-windows-static,
-          #   }
-          # 定制版:32 位工具链在新 runner 上不可装,且我们只需要 x64
+          - {
+              target: i686-pc-windows-msvc,
+              os: windows-2022,
+              arch: x86,
+              vcpkg-triplet: x86-windows-static,
+            }
           # - { target: aarch64-pc-windows-msvc, os: windows-2022 }
     steps:
       - name: Export GitHub Actions cache environment variables
